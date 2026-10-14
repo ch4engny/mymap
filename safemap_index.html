@@ -86,7 +86,10 @@ function initializeMap(){
   /* 지도가 표시된 뒤 현재 위치 확인 */
   kakao.maps.event.addListenerOnce(map,"idle",function(){
     mapReady=true;
-    statusText.textContent="현재 위치를 확인하고 있습니다.";
+    /* 위치 권한 응답을 기다리는 동안에도 기본 지도 중심으로 검색 가능 */
+    currentLocation=map.getCenter();
+    statusText.textContent="기본 위치 주변 장소를 먼저 검색하고, 현재 위치 확인을 시도합니다.";
+    searchNearbyPlaces();
     getCurrentLocation();
   });
 }
@@ -94,7 +97,7 @@ function initializeMap(){
 /* 현재 위치를 지도에 표시 */
 function getCurrentLocation(){
   if(!navigator.geolocation){
-    statusText.textContent="위치 기능을 지원하지 않아 서울 시청 주변을 검색합니다.";
+    statusText.textContent="위치 기능을 지원하지 않아 기본 지도 위치 주변을 검색합니다.";
     currentLocation=map.getCenter();searchNearbyPlaces();return;
   }
   statusText.textContent="브라우저의 위치 권한 요청을 허용해 주세요.";
@@ -106,7 +109,7 @@ function getCurrentLocation(){
       map:map,position:currentLocation,image:createSvgMarker("#2468d9","나"),
       title:"현재 위치",zIndex:5
     });
-    statusText.textContent="현재 위치 주변 장소를 찾고 있습니다.";
+    statusText.textContent="현재 위치를 확인했습니다. 주변 장소를 검색합니다.";
     searchNearbyPlaces();
   },function(error){
     /* 위치 확인 실패 시 기본 지도 중심을 이용 */
@@ -192,14 +195,16 @@ function searchNearbyPlaces(){
     /* 편의점은 카카오 장소 카테고리 코드 CS2로 검색 */
     places.categorySearch("CS2",function(results,status){
       if(requestId!==searchRequestId)return;
+      console.log("[세이프맵] 편의점 검색 상태:",status,"결과:",results);
       if(status===kakao.maps.services.Status.OK)displayPlaces(results,activeCategory,requestId);
-      else if(status===kakao.maps.services.Status.ZERO_RESULT)statusText.textContent="주변에 편의점 검색 결과가 없습니다.";
-      else statusText.textContent="편의점 검색에 실패했습니다. 잠시 후 다시 시도해 주세요.";
-    },{location:currentLocation,radius:2000,sort:kakao.maps.services.SortBy.DISTANCE,size:15});
+      else if(status===kakao.maps.services.Status.ZERO_RESULT)statusText.textContent="주변 2km 안에 편의점 검색 결과가 없습니다.";
+      else statusText.textContent="편의점 검색 실패 (상태: "+String(status)+"). 콘솔(F12)에서 오류를 확인해 주세요.";
+    },{location:currentLocation,radius:2000,sort:kakao.maps.services.SortBy.DISTANCE});
   }else{
     /* 경찰서는 키워드로 검색하고 주변 2km 결과만 표시 */
     places.keywordSearch("경찰서",function(results,status){
       if(requestId!==searchRequestId)return;
+      console.log("[세이프맵] 경찰서 검색 상태:",status,"결과:",results);
       if(status===kakao.maps.services.Status.OK){
         const nearbyResults=results.filter(function(place){
           const position=new kakao.maps.LatLng(Number(place.y),Number(place.x));
@@ -207,9 +212,9 @@ function searchNearbyPlaces(){
           return distance<=2000;
         });
         displayPlaces(nearbyResults,activeCategory,requestId);
-      }else if(status===kakao.maps.services.Status.ZERO_RESULT)statusText.textContent="주변에 경찰서 검색 결과가 없습니다.";
-      else statusText.textContent="경찰서 검색에 실패했습니다. 잠시 후 다시 시도해 주세요.";
-    },{location:currentLocation,radius:2000,sort:kakao.maps.services.SortBy.DISTANCE,size:15});
+      }else if(status===kakao.maps.services.Status.ZERO_RESULT)statusText.textContent="주변 2km 안에 경찰서 검색 결과가 없습니다. (지구대·파출소는 '파출소' 탭 검색어가 필요할 수 있어요.)";
+      else statusText.textContent="경찰서 검색 실패 (상태: "+String(status)+"). 콘솔(F12)에서 오류를 확인해 주세요.";
+    },{location:currentLocation,radius:2000,sort:kakao.maps.services.SortBy.DISTANCE});
   }
 }
 
@@ -228,9 +233,17 @@ tabButtons.forEach(function(button){
 
 /* SDK가 준비된 뒤 지도 초기화 */
 if(window.kakao&&window.kakao.maps){
-  kakao.maps.load(function(){initializeMap();});
+  kakao.maps.load(function(){
+    if(!kakao.maps.services||!kakao.maps.services.Places){
+      statusText.textContent="장소 검색 서비스를 불러오지 못했습니다. SDK 주소에 libraries=services가 있는지 확인해 주세요.";
+      console.error("[세이프맵] kakao.maps.services 또는 Places가 없습니다.");
+      return;
+    }
+    initializeMap();
+  });
 }else{
   statusText.textContent="카카오맵 SDK를 불러오지 못했습니다. 인터넷 연결, API 키, 웹 도메인 설정을 확인해 주세요.";
+  console.error("[세이프맵] 카카오맵 SDK 로딩 실패");
 }
 </script>
 </body>
