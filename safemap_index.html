@@ -126,6 +126,17 @@ function clearPlaceMarkers(){
 function clearPlaces(){resultList.replaceChildren();clearPlaceMarkers();}
 function getPlaceAddress(place){return place.road_address_name||place.address_name||"주소 정보 없음";}
 
+/* 두 좌표 사이의 거리를 미터 단위로 계산 (하버사인 공식) */
+function getDistanceMeters(pointA,pointB){
+  const earthRadius=6371000;
+  const lat1=pointA.getLat()*Math.PI/180;
+  const lat2=pointB.getLat()*Math.PI/180;
+  const deltaLat=(pointB.getLat()-pointA.getLat())*Math.PI/180;
+  const deltaLng=(pointB.getLng()-pointA.getLng())*Math.PI/180;
+  const a=Math.sin(deltaLat/2)**2+Math.cos(lat1)*Math.cos(lat2)*Math.sin(deltaLng/2)**2;
+  return earthRadius*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
 /* 장소 이름과 주소를 팝업으로 표시 */
 function showPlaceInfo(place,marker){
   const content=document.createElement("div");content.className="info-window";
@@ -192,7 +203,7 @@ function searchNearbyPlaces(){
       if(status===kakao.maps.services.Status.OK){
         const nearbyResults=results.filter(function(place){
           const position=new kakao.maps.LatLng(Number(place.y),Number(place.x));
-          const distance=kakao.maps.services.distance(currentLocation,position);
+          const distance=getDistanceMeters(currentLocation,position);
           return distance<=2000;
         });
         displayPlaces(nearbyResults,activeCategory,requestId);
